@@ -78,10 +78,20 @@ public:
   ///              and the second indexes frames: input[channel][frame]
   /// \param output Output audio buffers. Same structure as input.
   /// \param num_frames Number of frames to process
-  virtual void process(NAM_SAMPLE** input, NAM_SAMPLE** output, const int num_frames);
-  /// \brief Get the expected sample rate
-  /// \return Expected sample rate in Hz (-1.0 if unknown)
-  double GetExpectedSampleRate() const { return mExpectedSampleRate; };
+   virtual void process(NAM_SAMPLE** input, NAM_SAMPLE** output, const int num_frames);
+
+   /// \brief Set external input parameters (e.g., knob values) for subsequent process() calls.
+   ///
+   /// Called from the UI/message thread. Subclasses override to receive parameters.
+   /// Implementations should store parameters in a thread-safe manner (e.g., atomics)
+   /// since the audio thread will read them during process().
+   /// Default implementation is a no-op.
+   /// \param params Vector of parameter values to set
+   virtual void SetExternalInputs(const std::vector<float>& params) {}
+
+   /// \brief Get the expected sample rate
+   /// \return Expected sample rate in Hz (-1.0 if unknown)
+   double GetExpectedSampleRate() const { return mExpectedSampleRate; };
 
   /// \brief Get the number of input channels
   /// \return Number of input channels
@@ -166,18 +176,22 @@ public:
   void SetOutputLevel(const double outputLevel);
 
 protected:
-  friend class wavenet::WaveNet; // Allow WaveNet to access protected members. Used in condition DSP.
+   friend class wavenet::WaveNet; // Allow WaveNet to access protected members. Used in condition DSP.
 
-  bool mHasLoudness = false;
-  // How loud is the model? In dB
-  double mLoudness = 0.0;
-  // What sample rate does the model expect?
-  double mExpectedSampleRate;
-  // Have we been told what the external sample rate is? If so, what is it?
-  bool mHaveExternalSampleRate = false;
-  double mExternalSampleRate = -1.0;
-  // The largest buffer I expect to be told to process:
-  int mMaxBufferSize = 0;
+   bool mHasLoudness = false;
+   // How loud is the model? In dB
+   double mLoudness = 0.0;
+   // What sample rate does the model expect?
+   double mExpectedSampleRate;
+   // Have we been told what the external sample rate is? If so, what is it?
+   bool mHaveExternalSampleRate = false;
+   double mExternalSampleRate = -1.0;
+   // The largest buffer I expect to be told to process:
+   int mMaxBufferSize = 0;
+
+   // External input parameters (e.g., knob values) set from UI thread, read from audio thread.
+   // KnobConditioningDSP stores per-knob values here for thread-safe access.
+   mutable std::vector<float> mExternalInputs;
 
   /// \brief Get how many samples should be processed for the model to be considered "warmed up"
   ///
